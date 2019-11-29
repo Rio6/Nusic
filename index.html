@@ -3,6 +3,7 @@
 <html>
     <head>
         <title>Nusic</title>
+        <script src='https://code.jquery.com/jquery-3.4.1.min.js'></script>
         <script src='js/util/Base64Binary.js'></script>
         <script src='js/midi/audioDetect.js'></script>
         <script src='js/midi/plugin.webmidi.js'></script>
@@ -13,7 +14,11 @@
         <script src='js/nusic.js'></script>
     </head>
     <body>
-        <input type='text' id='notes-input' placeholder='notes' />
-        <button onclick='sound()'>Click me</button>
+        <div id='loading'>Loading</div>
+        <div id='tracks'></div>
+        <button onclick='addTrack()'>Add</button>
+        <button onclick='play()'>Play</button>
+        <button onclick='stop()'>Stop</button>
+        <input id='tempo' type='number' value='60' placeholder='tempo' />
     </body>
 </html>
