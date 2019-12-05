@@ -30,11 +30,12 @@ var chords = {
 // Variables
 var tracks = [];
 var tempo = 60;
+var repeat = false;
 var playerInterval = 0;
 
 var addTrack = () => {
     let id = tracks.length;
-    $('#tracks').append(`
+    let trackDiv = $('#tracks').append(`
         <div class='track' id=track-${id}>
             <input type='text' class='notes' placeholder='notes' />
             <select class='scale'>
@@ -49,10 +50,14 @@ var addTrack = () => {
             Beats <input class='beats' type='number' value=1 min=0 placeholder='beats' />
             Offset <input class='offset' type='number' value=0 min=0 placeholder='offset' />
             Duration <input class='duration' type='number' value=1 min=0 placeholder='duration' />
+            Velocity <input class='velocity' type='number' value=80 min=0 max=100 placeholder='velocity' />
             Repeat <input class='repeat' type='checkbox' />
             <button onclick='removeTrack(${id})'>Remove</button>
         </div>
-    `).on('change', 'select, input', e => updateTrack(id, e.target.parentNode));
+    `);
+
+    trackDiv.on('change', 'select, input', () => updateTrack(id));
+    trackDiv.find("option:contains('C4')").prop('selected', true);
 
     tracks.push({
         id: id,
@@ -63,6 +68,7 @@ var addTrack = () => {
         beats: 1,
         offset: 0,
         duration: 1,
+        velocity: 1,
         repeat: false,
     });
 };
@@ -73,7 +79,8 @@ var removeTrack = (id) => {
 };
 
 var updateTrack = (id, track) => {
-    let getValue = sel => $(track).children(sel).first().val();
+    let trackDiv = $(`#track-${id}`);
+    let getValue = sel => trackDiv.children(sel).first().val();
     tracks[id] = {
         id: id,
         notes: getValue('.notes'),
@@ -83,7 +90,8 @@ var updateTrack = (id, track) => {
         beats: +getValue('.beats'),
         offset: +getValue('.offset'),
         duration: +getValue('.duration'),
-        repeat: $(track).children('.repeat').first().is(':checked'),
+        velocity: +getValue('.velocity'),
+        repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
 };
 
@@ -111,34 +119,51 @@ var toNumber = char => {
     return +char;
 };
 
-var updateTempo = () => {
+var updateOptions = () => {
     tempo = +$('#tempo').val() || 60;
+    repeat = $('#repeat').is(':checked');
 };
 
 var play = () => {
-    updateTempo();
+    stop();
+    updateOptions();
 
     let i = 0;
+    let lastTime = 0;
+
     playerInterval = setInterval(() => {
-        let ended = true;
-        for(let track of tracks) {
-            if(!track || !track.notes) continue;
-            let k = (i - track.offset) / track.beats;
-            if(track.repeat) k %= track.notes.length;
-            if(k < track.notes.length) {
-                if(k >= 0 && k % 1 === 0) {
-                    let num = toNumber(track.notes[k]);
-                    let note = getNote(track.root, track.scale, num);
-                    console.log(note);
-                    MIDI.noteOn(0, note, 100, 0);
-                    MIDI.noteOff(0, note, track.duration);
+        if(Date.now() - lastTime > 1000 * 60 / tempo) {
+            let playing = tracks
+                .filter(t => t && t.notes)
+                .some(t => !t.repeat && (i - t.offset) / t.beats < t.notes.length);
+
+            if(playing) {
+                for(let track of tracks) {
+                    if(!track || !track.notes) continue;
+                    let k = (i - track.offset) / track.beats; // The index of note to play
+                    if(track.repeat) k %= track.notes.length; // Wrap around if track is repeating
+                    if(k < track.notes.length) {
+                        if(k >= 0 && (k === 0 || k % 1 === 0)) { // Make sure it's a positive integer
+                            for(let chord of chords[track.chord]) {
+                                let num = toNumber(track.notes[k]) + chord;
+                                let note = getNote(track.root, track.scale, num);
+                                MIDI.noteOn(0, note, track.velocity, 0);
+                                MIDI.noteOff(0, note, track.duration * 1000 * 60 / tempo);
+                            }
+                        }
+                    }
                 }
-                ended = false;
+            } else {
+                if(repeat)
+                    i = 0;
+                else
+                    clearInterval(playerInterval);
             }
+
+            lastTime = Date.now();
+            i++;
         }
-        i++;
-        if(ended) clearInterval(playerInterval);
-    }, 1000 * 60 / tempo);
+    }, 1);
 };
 
 var stop = () => {

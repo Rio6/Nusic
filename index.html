@@ -19,6 +19,7 @@
         <button onclick='addTrack()'>Add</button>
         <button onclick='play()'>Play</button>
         <button onclick='stop()'>Stop</button>
-        <input id='tempo' type='number' value='60' placeholder='tempo' />
+        Tempo: <input id='tempo' type='number' value='60' placeholder='tempo' onchange='updateOptions()' />
+        Repeat <input id='repeat' type='checkbox' onchange='updateOptons()' />
     </body>
 </html>
