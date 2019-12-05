@@ -1,14 +1,3 @@
-// Load midi
-window.onload = () => {
-    MIDI.loadPlugin({
-        instrument: ['acoustic_grand_piano'],
-        soundfontUrl: 'http://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/',
-        onsuccess: () => {
-            $('#loading').remove();
-        }
-    });
-}
-
 // scales and chords
 var scales = {
     Ionian: [0, 2, 4, 5, 7, 9, 11],
@@ -33,11 +22,57 @@ var tempo = 60;
 var repeat = false;
 var playerInterval = 0;
 
-var addTrack = () => {
-    let id = tracks.length;
+window.onload = () => {
+    // Load midi
+    MIDI.loadPlugin({
+        instrument: ['acoustic_grand_piano'],
+        soundfontUrl: 'http://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/',
+        onsuccess: () => {
+            $('#loading').remove();
+        }
+    });
+
+    // Load elements
+    let tracks = [];
+    try {
+        tracks = JSON.parse(localStorage.getItem('tracks')) || [];
+    } catch(e) {}
+
+    for(let track of tracks) {
+        addTrack(track);
+    }
+
+    tempo = +localStorage['tempo'];
+    repeat = localStorage['repeat'] === 'true';
+    $('#tempo').val(tempo);
+    if(repeat) $('repeat').attr('checked', true);
+}
+
+window.onbeforeunload = () => {
+    updateOptions();
+    localStorage['tracks'] = JSON.stringify(tracks.filter(t => t));
+    localStorage['tempo'] = tempo;
+    localStorage['repeat'] = repeat;
+}
+
+var addTrack = (track) => {
+    if(!track) {
+        track = {
+            id: tracks.length,
+            notes: "",
+            scale: 'Ionian',
+            root: 'C4',
+            chord: 'Single',
+            beats: 1,
+            offset: 0,
+            duration: 1,
+            velocity: 80,
+            repeat: false,
+        };
+    }
     let trackDiv = $('#tracks').append(`
-        <div class='track' id=track-${id}>
-            <input type='text' class='notes' placeholder='notes' />
+        <div class='track' id=track-${track.id}>
+            <input type='text' class='notes' placeholder='notes' value='${track.notes}' />
             <select class='scale'>
                 ${Object.keys(scales).map(note => '<option>'+note+'</option>').join('')}
             </select>
@@ -47,30 +82,25 @@ var addTrack = () => {
             <select class='chord'>
                 ${Object.keys(chords).map(note => '<option>'+note+'</option>').join('')}
             </select>
-            Beats <input class='beats' type='number' value=1 min=0 placeholder='beats' />
-            Offset <input class='offset' type='number' value=0 min=0 placeholder='offset' />
-            Duration <input class='duration' type='number' value=1 min=0 placeholder='duration' />
-            Velocity <input class='velocity' type='number' value=80 min=0 max=100 placeholder='velocity' />
+            Beats <input class='beats' type='number' value=1 min=0 placeholder='beats' value='${track.beats}' />
+            Offset <input class='offset' type='number' value=0 min=0 placeholder='offset' value='${track.offset}' />
+            Duration <input class='duration' type='number' value=1 min=0 placeholder='duration' value='${track.duration}' />
+            Velocity <input class='velocity' type='number' value=80 min=0 max=100 placeholder='velocity' value='${track.velocity}' />
             Repeat <input class='repeat' type='checkbox' />
-            <button onclick='removeTrack(${id})'>Remove</button>
+            <button onclick='removeTrack(${track.id})'>Remove</button>
         </div>
     `);
 
-    trackDiv.on('change', 'select, input', () => updateTrack(id));
-    trackDiv.find("option:contains('C4')").prop('selected', true);
+    trackDiv.on('change', 'select, input', () => updateTrack(track.id));
 
-    tracks.push({
-        id: id,
-        notes: [],
-        scale: "Ionian",
-        root: "C4",
-        chord: "Single",
-        beats: 1,
-        offset: 0,
-        duration: 1,
-        velocity: 1,
-        repeat: false,
-    });
+    // Setup default selections
+    trackDiv.find(`.scale option:contains('${track.scale}')`).prop('selected', true);
+    trackDiv.find(`.root option:contains('${track.root}')`).prop('selected', true);
+    trackDiv.find(`.chord option:contains('${track.chord}')`).prop('selected', true);
+    if(track.repeat)
+        trackDiv.find('.repeat').prop('checked', true);
+
+    tracks.push(track);
 };
 
 var removeTrack = (id) => {
