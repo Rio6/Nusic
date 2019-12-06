@@ -105,7 +105,7 @@ var addTrack = (track) => {
 
 var removeTrack = (id) => {
     $('#track-'+id).remove();
-    tracks[id] = null;
+    tracks = tracks.filter(({id: tid}) => tid != id);
 };
 
 var updateTrack = (id, track) => {
