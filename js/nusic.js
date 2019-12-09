@@ -70,7 +70,7 @@ var addTrack = (track) => {
             repeat: false,
         };
     }
-    let trackDiv = $('#tracks').append(`
+    let trackDiv = $(`
         <div class='track' id=track-${track.id}>
             <input type='text' class='notes' placeholder='notes' value='${track.notes}' />
             <select class='scale'>
@@ -89,7 +89,7 @@ var addTrack = (track) => {
             Repeat <input class='repeat' type='checkbox' />
             <button onclick='removeTrack(${track.id})'>Remove</button>
         </div>
-    `);
+    `).appendTo('#tracks');
 
     trackDiv.on('change', 'select, input', () => updateTrack(track.id));
 
