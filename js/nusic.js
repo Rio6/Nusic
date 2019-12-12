@@ -20,6 +20,7 @@ var chords = {
 var tracks = [];
 var tempo = 60;
 var repeat = false;
+var decimals = 100;
 var playerInterval = 0;
 
 window.onload = () => {
@@ -44,9 +45,12 @@ window.onload = () => {
         addTrack(track);
     }
 
-    tempo = +localStorage['tempo'];
+    tempo = localStorage['tempo'];
+    decimals = localStorage['decimals'];
     repeat = localStorage['repeat'] === 'true';
-    $('#tempo').val(tempo);
+
+    if(tempo !== null) $('#tempo').val(+tempo);
+    if(decimals !== null) $('#decimals').val(+decimals);
     if(repeat) $('repeat').attr('checked', true);
 }
 
@@ -54,6 +58,7 @@ window.onbeforeunload = () => {
     updateOptions();
     localStorage['tracks'] = JSON.stringify(tracks.filter(t => t));
     localStorage['tempo'] = tempo;
+    localStorage['decimals'] = decimals;
     localStorage['repeat'] = repeat;
 }
 
@@ -128,11 +133,15 @@ var updateTrack = (id, track) => {
         repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
 
+    updateNotes(id);
+}
+
+var updateNotes = (id) => {
     // If expression is non changing, evaluate them and turn them into notes
     try {
         let exp = nerdamer(tracks[id].expression).evaluate();
         if(exp.isNumber()) {
-            tracks[id].notes = exp.text('decimals');
+            tracks[id].notes = exp.text('decimals', decimals).replace('.', '');
         }
     } catch(e) {}
 };
@@ -164,10 +173,12 @@ var toNumber = char => {
 var updateOptions = () => {
     tempo = +$('#tempo').val() || 60;
     repeat = $('#repeat').is(':checked');
+    decimals = +$('#decimals').val() || 100;
+    tracks.forEach(({id}) => updateNotes(id));
 };
 
 var evaluateNote = (expression, x) => {
-    return Math.round(nerdamer(expression, {x: x}).evaluate().text('decimal'));
+    return Math.round(nerdamer(expression, {x: x}).evaluate().text('decimals'));
 };
 
 var play = () => {
