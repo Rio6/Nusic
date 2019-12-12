@@ -1,0 +1,9 @@
+[submodule "lib/MIDI"]
+	path = lib/MIDI
+	url = https://github.com/mudcube/MIDI.js
+[submodule "lib/nerdamer"]
+	path = lib/nerdamer
+	url = https://github.com/jiggzson/nerdamer
+[submodule "lib/Base64Binary"]
+	path = lib/Base64Binary
+	url = https://gist.github.com/htchaan/108b7aa6b71eb03e38019e64450ea095
