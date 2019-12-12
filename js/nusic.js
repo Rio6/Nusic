@@ -36,7 +36,9 @@ window.onload = () => {
     let tracks = [];
     try {
         tracks = JSON.parse(localStorage.getItem('tracks')) || [];
-    } catch(e) {}
+    } catch(e) {
+        conole.error("Invalid expression");
+    }
 
     for(let track of tracks) {
         addTrack(track);
@@ -59,7 +61,8 @@ var addTrack = (track) => {
     if(!track) {
         track = {
             id: tracks.length,
-            notes: "",
+            notes: null,
+            expression: "",
             scale: 'Ionian',
             root: 'C4',
             chord: 'Single',
@@ -72,7 +75,7 @@ var addTrack = (track) => {
     }
     let trackDiv = $(`
         <div class='track' id=track-${track.id}>
-            <input type='text' class='notes' placeholder='notes' value='${track.notes}' />
+            <input type='text' class='expression' placeholder='expression' value='${track.expression}' />
             <select class='scale'>
                 ${Object.keys(scales).map(note => '<option>'+note+'</option>').join('')}
             </select>
@@ -113,7 +116,8 @@ var updateTrack = (id, track) => {
     let getValue = sel => trackDiv.children(sel).first().val();
     tracks[id] = {
         id: id,
-        notes: getValue('.notes'),
+        notes: null,
+        expression: getValue('.expression'),
         scale: getValue('.scale'),
         root: getValue('.root'),
         chord: getValue('.chord'),
@@ -123,6 +127,14 @@ var updateTrack = (id, track) => {
         velocity: +getValue('.velocity'),
         repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
+
+    // If expression is non changing, evaluate them and turn them into notes
+    try {
+        let exp = nerdamer(tracks[id].expression).evaluate();
+        if(exp.isNumber()) {
+            tracks[id].notes = exp.text('decimals');
+        }
+    } catch(e) {}
 };
 
 var wrapNumber = (num, max) => {
@@ -137,7 +149,7 @@ var getNote = (root, scaleName, note) => {
     let scale = scales[scaleName];
     if(rootKey && scale) {
         let shift = Math.floor((note-1) / scale.length);
-        return rootKey + scale[wrapNumber(note-1, scale.length)] + shift * 12;
+        return wrapNumber(rootKey + scale[wrapNumber(note-1, scale.length)] + shift * 12, 109);
     }
 };
 
@@ -154,6 +166,10 @@ var updateOptions = () => {
     repeat = $('#repeat').is(':checked');
 };
 
+var evaluateNote = (expression, x) => {
+    return Math.round(nerdamer(expression, {x: x}).evaluate().text('decimal'));
+};
+
 var play = () => {
     stop();
     updateOptions();
@@ -164,21 +180,22 @@ var play = () => {
     playerInterval = setInterval(() => {
         if(Date.now() - lastTime > 1000 * 60 / tempo) {
             let playing = tracks
-                .filter(t => t && t.notes)
-                .some(t => !t.repeat && (i - t.offset) / t.beats < t.notes.length);
+                .filter(t => t && t.expression)
+                .some(t => !t.repeat && (!t.notes || (i - t.offset) / t.beats < t.notes.length));
 
             if(playing) {
                 for(let track of tracks) {
-                    if(!track || !track.notes) continue;
+                    if(!track || !track.expression) continue;
                     let k = (i - track.offset) / track.beats; // The index of note to play
-                    if(track.repeat) k %= track.notes.length; // Wrap around if track is repeating
-                    if(k < track.notes.length) {
-                        if(k >= 0 && (k === 0 || k % 1 === 0)) { // Make sure it's a positive integer
+                    if(track.repeat && track.notes) k %= track.notes.length; // Wrap around if track is repeating and has non-changing notes
+                    if(!k.notes || k < track.notes.length) {
+                        if(k >= 0 && (k === 0 || k % 1 === 0)) { // Make sure it's a positive integer so it's played on beat
+                            let note = track.notes ? track.notes[k] : evaluateNote(track.expression, k);
                             for(let chord of chords[track.chord]) {
-                                let num = toNumber(track.notes[k]) + chord;
-                                let note = getNote(track.root, track.scale, num);
-                                MIDI.noteOn(0, note, track.velocity, 0);
-                                MIDI.noteOff(0, note, track.duration * 1000 * 60 / tempo);
+                                let num = toNumber(note) + chord;
+                                let play = getNote(track.root, track.scale, num);
+                                MIDI.noteOn(0, play, track.velocity, 0);
+                                MIDI.noteOff(0, play, track.duration * 1000 * 60 / tempo);
                             }
                         }
                     }
