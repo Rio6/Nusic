@@ -183,7 +183,9 @@ var updateOptions = () => {
 };
 
 var evaluateNote = (expression, x) => {
-    return Math.round(nerdamer(expression, {x: x}).evaluate().text('decimals'));
+    let exp = nerdamer(expression, {x: x}).evaluate();
+    if(exp.isNumber) {
+        return Math.round(exp.text('decimals'));
 };
 
 var play = () => {
@@ -207,11 +209,13 @@ var play = () => {
                     if(!k.notes || k < track.notes.length) {
                         if(k >= 0 && (k === 0 || k % 1 === 0)) { // Make sure it's a positive integer so it's played on beat
                             let note = track.notes ? track.notes[k] : evaluateNote(track.expression, k);
-                            for(let chord of chords[track.chord]) {
-                                let num = toNumber(note) + chord;
-                                let play = getNote(track.root, track.scale, num);
-                                MIDI.noteOn(0, play, track.velocity, 0);
-                                MIDI.noteOff(0, play, track.duration * 1000 * 60 / tempo);
+                            if(typeof(note) !== 'undefined') {
+                                for(let chord of chords[track.chord]) {
+                                    let num = toNumber(note) + chord;
+                                    let play = getNote(track.root, track.scale, num);
+                                    MIDI.noteOn(0, play, track.velocity, 0);
+                                    MIDI.noteOff(0, play, track.duration * 1000 * 60 / tempo);
+                                }
                             }
                         }
                     }
