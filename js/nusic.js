@@ -61,6 +61,7 @@ window.onload = () => {
 
 window.onbeforeunload = () => {
     updateOptions();
+    tracks.forEach(t => t.notes = null);
     localStorage['tracks'] = JSON.stringify(tracks.filter(t => t));
     localStorage['tempo'] = tempo;
     localStorage['decimals'] = decimals;
@@ -142,12 +143,20 @@ var updateTrack = (id, track) => {
 }
 
 var updateNotes = (id) => {
-    // If expression is non changing, evaluate them and turn them into notes
     try {
-        let exp = nerdamer(tracks[id].expression).evaluate();
-        if(exp.isNumber()) {
-            tracks[id].notes = exp.text('decimals', decimals).replace('.', '');
+        let notes = null;
+        let exp = nerdamer(tracks[id].expression);
+        let constant = exp.evaluate();
+        if(constant.isNumber()) { // If expression is non changing, evaluate them and turn them into notes
+            notes = constant.text('decimals', decimals);
+        } else if(tracks[id].repeat) { // Or if the track is repeating, evaluate the first notes
+            let variable = exp.evaluate({x: 0});
+            if(variable.isNumber()) {
+                notes = variable.text('decimals', decimals);
+            }
         }
+        if(notes)
+            tracks[id].notes = notes.replace('.', '').split('');
     } catch(e) {}
 };
 
@@ -182,10 +191,12 @@ var updateOptions = () => {
     tracks.forEach(({id}) => updateNotes(id));
 };
 
-var evaluateNote = (expression, x) => {
+var evaluateNote = (expression, x, round) => {
     let exp = nerdamer(expression, {x: x}).evaluate();
-    if(exp.isNumber) {
-        return Math.round(exp.text('decimals'));
+    if(exp.isNumber()) {
+        let n = exp.text('decimals', decimals);
+        return round ? Math.round(n).toString() : n.replace('.', '');
+    }
 };
 
 var play = () => {
@@ -195,20 +206,24 @@ var play = () => {
     let i = 0;
     let lastTime = 0;
 
+    tracks.forEach((t, id) => {
+        updateTrack(id);
+        tracks[id].evaCount = 0;
+    });
+
     playerInterval = setInterval(() => {
         if(Date.now() - lastTime > 1000 * 60 / tempo) {
-            let playing = tracks
-                .filter(t => t && t.expression)
-                .some(t => !t.repeat && (!t.notes || (i - t.offset) / t.beats < t.notes.length));
+            tracks = tracks.filter(t => t && t.expression);
+
+            let playing = tracks.some(t => !t.repeat && (!t.notes || t.notes.length > 0)) // at least one non-repeating track playing
+                            || tracks.some(t => t.repeat); // or they're all repeating
 
             if(playing) {
                 for(let track of tracks) {
-                    if(!track || !track.expression) continue;
                     let k = (i - track.offset) / track.beats; // The index of note to play
-                    if(track.repeat && track.notes) k %= track.notes.length; // Wrap around if track is repeating and has non-changing notes
-                    if(!k.notes || k < track.notes.length) {
-                        if(k >= 0 && (k === 0 || k % 1 === 0)) { // Make sure it's a positive integer so it's played on beat
-                            let note = track.notes ? track.notes[k] : evaluateNote(track.expression, k);
+                    if(k >= 0 && k % 1 === 0) { // Make sure it's a positive integer so it's played on beat
+                        if(!track.notes || track.notes.length > 0) {
+                            let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, k, true);
                             if(typeof(note) !== 'undefined') {
                                 for(let chord of chords[track.chord]) {
                                     let num = toNumber(note) + chord;
@@ -217,6 +232,12 @@ var play = () => {
                                     MIDI.noteOff(0, play, track.duration * 1000 * 60 / tempo);
                                 }
                             }
+                        }
+                        // Append to notes if repeating
+                        if(track.repeat && track.notes && track.notes.length === 0) {
+                            let note = evaluateNote(track.expression, ++track.evaCount, false);
+                            if(typeof(note) !== 'undefined')
+                                track.notes.push(...note.split(''));
                         }
                     }
                 }
