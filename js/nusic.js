@@ -97,19 +97,19 @@ var addTrack = (track) => {
         <div class='track' id=track-${track.id}>
             <input type='text' class='expression' placeholder='expression' value='${track.expression}' />
             <select class='scale'>
-                ${Object.keys(scales).map(note => '<option>'+note+'</option>').join('')}
+                ${Object.keys(scales).map(note => `<option>${note}</option>`).join('')}
             </select>
             <select class='root'>
-                ${Object.keys(MIDI.keyToNote).map(note => '<option>'+note+'</option>').join('')}
+                ${Object.keys(MIDI.keyToNote).map(note => `<option>${note}</option>`).join('')}
             </select>
             <select class='chord'>
-                ${Object.keys(chords).map(note => '<option>'+note+'</option>').join('')}
+                ${Object.keys(chords).map(note => `<option>${note}</option>`).join('')}
             </select>
-            Beats <input class='beats' type='number' value=1 min=0 placeholder='beats' value='${track.beats}' />
-            Offset <input class='offset' type='number' value=0 min=0 placeholder='offset' value='${track.offset}' />
-            Duration <input class='duration' type='number' value=1 min=0 placeholder='duration' value='${track.duration}' />
-            Velocity <input class='velocity' type='number' value=80 min=0 max=100 placeholder='velocity' value='${track.velocity}' />
-            Repeat <input class='repeat' type='checkbox' />
+            Beats <input class='beats' type='number' min=0 placeholder='beats' value='${track.beats}' />
+            Offset <input class='offset' type='number' min=0 placeholder='offset' value='${track.offset}' />
+            Duration <input class='duration' type='number' min=0 placeholder='duration' value='${track.duration}' />
+            Velocity <input class='velocity' type='number' min=0 max=100 placeholder='velocity' value='${track.velocity}' />
+            Repeat/Digits <input class='repeat' type='checkbox' />
             <button onclick='removeTrack(${track.id})'>Remove</button>
         </div>
     `).appendTo('#tracks');
