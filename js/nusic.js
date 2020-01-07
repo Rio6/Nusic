@@ -29,8 +29,6 @@ var chords = {
 // Variables
 var tracks = [];
 var tempo = 60;
-var repeat = false;
-var swing = false;
 var decimals = 100;
 var playerInterval = 0;
 
@@ -58,13 +56,9 @@ window.onload = () => {
 
     tempo = localStorage['tempo'];
     decimals = localStorage['decimals'];
-    repeat = localStorage['repeat'] === 'true';
-    swing = localStorage['swing'] === 'true';
 
     if(tempo !== null) $('#tempo').val(+tempo);
     if(decimals !== null) $('#decimals').val(+decimals);
-    if(repeat) $('repeat').attr('checked', true);
-    if(swing) $('swing').attr('checked', true);
 }
 
 window.onbeforeunload = () => {
@@ -73,8 +67,6 @@ window.onbeforeunload = () => {
     localStorage['tracks'] = JSON.stringify(tracks.filter(t => t));
     localStorage['tempo'] = tempo;
     localStorage['decimals'] = decimals;
-    localStorage['repeat'] = repeat;
-    localStorage['swing'] = swing;
 }
 
 var addTrack = (track) => {
@@ -190,7 +182,6 @@ var toNumber = char => {
 var updateOptions = () => {
     tempo = +$('#tempo').val() || 60;
     repeat = $('#repeat').is(':checked');
-    swing = $('#swing').is(':checked');
     decimals = +$('#decimals').val() || 100;
     tracks.forEach(({id}) => updateNotes(id));
 };
