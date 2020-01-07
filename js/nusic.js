@@ -86,9 +86,7 @@ var addTrack = (track) => {
             scale: 'Ionian',
             root: 'C4',
             chord: 'Single',
-            beats: 1,
-            offset: 0,
-            duration: 1,
+            beats: '1',
             velocity: 80,
             repeat: false,
         };
@@ -106,8 +104,6 @@ var addTrack = (track) => {
                 ${Object.keys(chords).map(note => `<option>${note}</option>`).join('')}
             </select>
             Beats <input class='beats' type='number' min=0 placeholder='beats' value='${track.beats}' />
-            Offset <input class='offset' type='number' min=0 placeholder='offset' value='${track.offset}' />
-            Duration <input class='duration' type='number' min=0 placeholder='duration' value='${track.duration}' />
             Velocity <input class='velocity' type='number' min=0 max=100 placeholder='velocity' value='${track.velocity}' />
             Repeat/Digits <input class='repeat' type='checkbox' />
             <button onclick='removeTrack(${track.id})'>Remove</button>
@@ -141,9 +137,7 @@ var updateTrack = (id, track) => {
         scale: getValue('.scale'),
         root: getValue('.root'),
         chord: getValue('.chord'),
-        beats: +getValue('.beats'),
-        offset: +getValue('.offset'),
-        duration: +getValue('.duration'),
+        beats: getValue('.beats'),
         velocity: +getValue('.velocity'),
         repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
@@ -216,54 +210,60 @@ var play = () => {
     let i = 0;
     let lastTime = 0;
 
-    tracks.forEach((t, id) => {
+    tracks.forEach((track, id) => {
         updateTrack(id);
-        tracks[id].evaCount = 0;
-    });
 
-    playerInterval = setInterval(() => {
-        if(Date.now() - lastTime > 1000 * 60 / tempo * (swing ? i % 2 === 0 ? 2/3 : 3/2 : 1)) {
-            tracks = tracks.filter(t => t && t.expression);
+        let count = 0;
+        let evaCount = 0;
 
-            let playing = tracks.some(t => !t.repeat && (!t.notes || t.notes.length > 0)) // at least one non-repeating track playing
-                            || tracks.some(t => t.repeat); // or they're all repeating
+        tracks[id].player = setTimeout(function run() {
+            let track = tracks[id]; // Make sure to use the same one as global
+            let beat = +track.beats[count % track.beats.length];
 
-            if(playing) {
-                for(let track of tracks) {
-                    let k = (i - track.offset) / track.beats; // The index of note to play
-                    if(k >= 0 && k % 1 === 0) { // Make sure it's a positive integer so it's played on beat
-                        if(!track.notes || track.notes.length > 0) {
-                            let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, k, true);
-                            if(typeof(note) !== 'undefined') {
-                                for(let chord of chords[track.chord]) {
-                                    let num = toNumber(note) + chord;
-                                    let play = getNote(track.root, track.scale, num);
-                                    MIDI.noteOn(0, play, track.velocity, 0);
-                                    MIDI.noteOff(0, play, track.duration * 1000 * 60 / tempo);
-                                }
-                            }
-                        }
-                        // Append to notes if repeating
-                        if(track.repeat && track.notes && track.notes.length === 0) {
-                            let note = evaluateNote(track.expression, ++track.evaCount, false);
-                            if(typeof(note) !== 'undefined')
-                                track.notes.push(...note.split(''));
-                        }
+            if(beat > 0) {
+
+                let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, i, true);
+                if(typeof(note) !== 'undefined') {
+                    for(let chord of chords[track.chord]) {
+
+                        let num = toNumber(note) + chord;
+                        let play = getNote(track.root, track.scale, num);
+                        let duration = beat * 1000 * 60 / tempo;
+
+                        MIDI.noteOn(0, play, track.velocity, 0);
+                        MIDI.noteOff(0, duration);
+
+                        track.player = setTimeout(run, duration);
                     }
                 }
+
+                if(track.notes && track.notes.length === 0) {
+                    // Finished
+                    if(track.repeat) {
+                        let note = evaluateNote(track.expression, ++evaCount, false);
+                        if(typeof(note) !== 'undefined')
+                            track.notes.push(...note.split(''));
+                    } else {
+                        stopTrack(id);
+                    }
+                }
+
             } else {
-                if(repeat)
-                    i = 0;
-                else
-                    clearInterval(playerInterval);
+                track.player = setTimeout(run, 1000 * 60 / tempo);
             }
 
-            lastTime = Date.now();
-            i++;
-        }
-    }, 1);
+            count++;
+        });
+    });
 };
 
+var stopTrack = id => {
+    if(tracks[id].player) {
+        clearInterval(tracks[id].player);
+        tracks[id].player = null;
+    }
+}
+
 var stop = () => {
-    clearInterval(playerInterval);
+    tracks.forEach(track => stopTrack(track.id));
 };
