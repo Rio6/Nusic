@@ -95,9 +95,9 @@ var addTrack = (track) => {
             <select class='chord'>
                 ${Object.keys(chords).map(note => `<option>${note}</option>`).join('')}
             </select>
-            Beats <input class='beats' type='number' min=0 placeholder='beats' value='${track.beats}' />
+            Beats <input class='beats' type='text' placeholder='beats' value='${track.beats}' />
             Velocity <input class='velocity' type='number' min=0 max=100 placeholder='velocity' value='${track.velocity}' />
-            Repeat/Digits <input class='repeat' type='checkbox' />
+            Repeat <input class='repeat' type='checkbox' />
             <button onclick='removeTrack(${track.id})'>Remove</button>
         </div>
     `).appendTo('#tracks');
@@ -213,13 +213,13 @@ var play = () => {
 
             if(beat > 0) {
 
-                let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, i, true);
+                let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, count, true);
                 if(typeof(note) !== 'undefined') {
                     for(let chord of chords[track.chord]) {
 
                         let num = toNumber(note) + chord;
                         let play = getNote(track.root, track.scale, num);
-                        let duration = beat * 1000 * 60 / tempo;
+                        let duration = 1000 * 60 / tempo * 4 / beat;
 
                         MIDI.noteOn(0, play, track.velocity, 0);
                         MIDI.noteOff(0, duration);
