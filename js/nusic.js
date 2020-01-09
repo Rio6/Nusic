@@ -35,15 +35,6 @@ var playerInterval = 0;
 window.onload = () => {
     let soundfontUrl = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/';
 
-    // Load midi
-    MIDI.loadPlugin({
-        instrument: "acoustic_grand_piano",
-        soundfontUrl: soundfontUrl,
-        onsuccess: () => {
-            $('#loading').hide();
-        }
-    });
-
     // Load elements
     let tracks = [];
     try {
@@ -61,6 +52,21 @@ window.onload = () => {
 
     if(tempo !== null) $('#tempo').val(+tempo);
     if(decimals !== null) $('#decimals').val(+decimals);
+
+    // Load midi
+    MIDI.loadPlugin({
+        instrument: "acoustic_grand_piano",
+        soundfontUrl: soundfontUrl,
+        onsuccess: () => {
+            if(tracks.length > 0) {
+                // Load track instrument
+                tracks.forEach(track => loadInstrument(track.instrument, track.id));
+            } else {
+                $('#loading').hide();
+            }
+        },
+        onerror: () => $('#error').show()
+    });
 }
 
 window.onbeforeunload = () => {
@@ -72,14 +78,25 @@ window.onbeforeunload = () => {
 }
 
 var loadInstrument = (name, ch) => {
-    $('#loading').show();
-    MIDI.loadResource({
-        instrument: name,
-        onsuccess: () => {
-            MIDI.programChange(ch, MIDI.GM.byName[name].number);
-            $('#loading').hide();
-        }
-    })
+    $('#error').hide(); // Reset error
+
+    let instrument = MIDI.GM.byName[name];
+
+    if(MIDI.Soundfont[instrument.id]) {
+        // Already loaded
+        MIDI.programChange(ch, instrument.number);
+        $('#loading').hide();
+    } else {
+        $('#loading').show();
+        MIDI.loadResource({
+            instrument: name,
+            onsuccess: () => {
+                MIDI.programChange(ch, instrument.number);
+                $('#loading').hide();
+            },
+            onerror: () => $('#error').show()
+        });
+    }
 }
 
 var addTrack = (track) => {
@@ -208,10 +225,14 @@ var updateOptions = () => {
 };
 
 var evaluateNote = (expression, x, round) => {
-    let exp = nerdamer(expression, {x: x}).evaluate();
-    if(exp.isNumber()) {
-        let n = exp.text('decimals', decimals);
-        return round ? Math.round(n).toString() : n.replace('.', '');
+    if(!isNaN(expression)) { // Is a number already, don't need to calculate
+        return expression.replace('.', '');
+    } else {
+        let exp = nerdamer(expression, {x: x}).evaluate();
+        if(exp.isNumber()) {
+            let n = exp.text('decimals', decimals);
+            return round ? Math.round(n).toString() : n.replace('.', '');
+        }
     }
 };
 
