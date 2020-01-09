@@ -33,12 +33,14 @@ var decimals = 100;
 var playerInterval = 0;
 
 window.onload = () => {
+    let soundfontUrl = 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/';
+
     // Load midi
     MIDI.loadPlugin({
-        instrument: ['acoustic_grand_piano'],
-        soundfontUrl: 'https://gleitz.github.io/midi-js-soundfonts/FluidR3_GM/',
+        instrument: "acoustic_grand_piano",
+        soundfontUrl: soundfontUrl,
         onsuccess: () => {
-            $('#loading').remove();
+            $('#loading').hide();
         }
     });
 
@@ -69,20 +71,33 @@ window.onbeforeunload = () => {
     localStorage['decimals'] = decimals;
 }
 
+var loadInstrument = (name, ch) => {
+    $('#loading').show();
+    MIDI.loadResource({
+        instrument: name,
+        onsuccess: () => {
+            MIDI.programChange(ch, MIDI.GM.byName[name].number);
+            $('#loading').hide();
+        }
+    })
+}
+
 var addTrack = (track) => {
     if(!track) {
         track = {
-            id: tracks.length,
             notes: null,
             expression: "",
             scale: 'Ionian',
             root: 'C4',
             chord: 'Single',
-            beats: '1',
+            beats: '4',
             velocity: 80,
             repeat: false,
         };
     }
+
+    track.id = tracks.length;
+
     let trackDiv = $(`
         <div class='track' id=track-${track.id}>
             <input type='text' class='expression' placeholder='expression' value='${track.expression}' />
@@ -93,7 +108,10 @@ var addTrack = (track) => {
                 ${Object.keys(MIDI.keyToNote).map(note => `<option>${note}</option>`).join('')}
             </select>
             <select class='chord'>
-                ${Object.keys(chords).map(note => `<option>${note}</option>`).join('')}
+                ${Object.keys(chords).map(chord => `<option>${chord}</option>`).join('')}
+            </select>
+            <select class='instrument'>
+                ${Object.keys(MIDI.GM.byName).map(instrument => `<option>${instrument}</option>`).join('')}
             </select>
             Beats <input class='beats' type='text' placeholder='beats' value='${track.beats}' />
             Velocity <input class='velocity' type='number' min=0 max=100 placeholder='velocity' value='${track.velocity}' />
@@ -108,6 +126,7 @@ var addTrack = (track) => {
     trackDiv.find(`.scale option:contains('${track.scale}')`).prop('selected', true);
     trackDiv.find(`.root option:contains('${track.root}')`).prop('selected', true);
     trackDiv.find(`.chord option:contains('${track.chord}')`).prop('selected', true);
+    trackDiv.find(`.instrument option:contains('${track.instrument}')`).prop('selected', true);
     if(track.repeat)
         trackDiv.find('.repeat').prop('checked', true);
 
@@ -129,11 +148,13 @@ var updateTrack = (id, track) => {
         scale: getValue('.scale'),
         root: getValue('.root'),
         chord: getValue('.chord'),
+        instrument: getValue('.instrument'),
         beats: getValue('.beats'),
         velocity: +getValue('.velocity'),
         repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
 
+    loadInstrument(tracks[id].instrument, id);
     updateNotes(id);
 }
 
