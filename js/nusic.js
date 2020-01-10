@@ -62,7 +62,7 @@ window.onload = () => {
         onsuccess: () => {
             if(tracks.length > 0) {
                 // Load track instrument
-                tracks.forEach(track => loadInstrument(track.instrument, track.id));
+                tracks.forEach(({instrument}, id) => loadInstrument(instrument, id));
             } else {
                 $('#loading').hide();
             }
@@ -73,7 +73,7 @@ window.onload = () => {
 
 window.onbeforeunload = () => {
     updateOptions();
-    tracks.forEach(t => t.notes = null);
+    tracks.filter(t=>t).forEach(t => t.notes = null);
     localStorage['tracks'] = JSON.stringify(tracks.filter(t => t));
     localStorage['tempo'] = tempo;
     localStorage['decimals'] = decimals;
@@ -103,7 +103,11 @@ var loadInstrument = (name, ch) => {
 
 var addTrack = (track) => {
     if(!track) {
+        let id = tracks.findIndex(t => !t);
+        if(id < 0) id = tracks.length;
+
         track = {
+            id: id,
             notes: null,
             expression: "",
             scale: 'Ionian',
@@ -114,8 +118,6 @@ var addTrack = (track) => {
             repeat: false,
         };
     }
-
-    track.id = tracks.length;
 
     let trackDiv = $(`
         <div class='track' id=track-${track.id}>
@@ -149,15 +151,15 @@ var addTrack = (track) => {
     if(track.repeat)
         trackDiv.find('.repeat').prop('checked', true);
 
-    tracks.push(track);
+    tracks[track.id] = track;
 };
 
 var removeTrack = (id) => {
     $('#track-'+id).remove();
-    tracks = tracks.filter(({id: tid}) => tid != id);
+    tracks[id] = null;
 };
 
-var updateTrack = (id, track) => {
+var updateTrack = (id) => {
     let trackDiv = $(`#track-${id}`);
     let getValue = sel => trackDiv.children(sel).first().val();
     tracks[id] = {
@@ -168,7 +170,7 @@ var updateTrack = (id, track) => {
         root: getValue('.root'),
         chord: getValue('.chord'),
         instrument: getValue('.instrument'),
-        beats: getValue('.beats'),
+        beats: getValue('.beats').split(','),
         velocity: +getValue('.velocity'),
         repeat: trackDiv.children('.repeat').first().is(':checked'),
     };
@@ -178,21 +180,20 @@ var updateTrack = (id, track) => {
 }
 
 var updateNotes = (id) => {
-    try {
-        let notes = null;
-        let exp = nerdamer(tracks[id].expression);
-        let constant = exp.evaluate();
-        if(constant.isNumber()) { // If expression is non changing, evaluate them and turn them into notes
-            notes = constant.text('decimals', decimals);
-        } else if(tracks[id].repeat) { // Or if the track is repeating, evaluate the first notes
-            let variable = exp.evaluate({x: 0});
-            if(variable.isNumber()) {
-                notes = variable.text('decimals', decimals);
-            }
-        }
-        if(notes)
-            tracks[id].notes = notes.replace('.', '').split('');
-    } catch(e) {}
+    let notes = evaluateNote(tracks[id].expression, null, false);
+    if(notes) {
+        tracks[id].notes = notes.replace('.', '').split('');
+    } else if(tracks[id].repeat) {
+        notes = evaluateNote(tracks[id].expression, 0, false);
+        tracks[id].notes = notes.replace('.', '').split('');
+    }
+};
+
+var updateOptions = () => {
+    tempo = +$('#tempo').val() || 60;
+    repeat = $('#repeat').is(':checked');
+    decimals = +$('#decimals').val() || 10;
+    tracks.filter(t=>t).forEach((_,id) => updateNotes(id));
 };
 
 var wrapNumber = (num, max) => {
@@ -219,16 +220,9 @@ var toNumber = char => {
     return +char;
 };
 
-var updateOptions = () => {
-    tempo = +$('#tempo').val() || 60;
-    repeat = $('#repeat').is(':checked');
-    decimals = +$('#decimals').val() || 100;
-    tracks.forEach(({id}) => updateNotes(id));
-};
-
 var evaluateNote = (expression, x, round) => {
     if(!isNaN(expression)) { // Is a number already, don't need to calculate
-        return expression.replace('.', '');
+        return round ? Math.round(expression).toString() : expression.replace('.', '');
     } else {
         let exp = nerdamer(expression, {x: x}).evaluate();
         if(exp.isNumber()) {
@@ -246,6 +240,8 @@ var play = () => {
     let lastTime = 0;
 
     tracks.forEach((track, id) => {
+        if(!track) return;
+
         updateTrack(id);
 
         let count = 0;
@@ -259,25 +255,27 @@ var play = () => {
 
                 let note = track.notes ? track.notes.shift() : evaluateNote(track.expression, count, true);
                 if(typeof(note) !== 'undefined') {
+
+                    let duration = 1000 * 60 / tempo * 4 / beat;
+
                     for(let chord of chords[track.chord]) {
 
                         let num = toNumber(note) + chord;
                         let play = getNote(track.root, track.scale, num);
-                        let duration = 1000 * 60 / tempo * 4 / beat;
 
                         MIDI.noteOn(0, play, track.velocity, 0);
-                        MIDI.noteOff(0, duration);
-
-                        track.player = setTimeout(run, duration);
+                        MIDI.noteOff(0, duration * .8);
                     }
+
+                    track.player = setTimeout(run, duration);
                 }
 
                 if(track.notes && track.notes.length === 0) {
                     // Finished
                     if(track.repeat) {
-                        let note = evaluateNote(track.expression, ++evaCount, false);
-                        if(typeof(note) !== 'undefined')
-                            track.notes.push(...note.split(''));
+                        let notes = evaluateNote(track.expression, ++evaCount, false);
+                        if(typeof(notes) !== 'undefined')
+                            track.notes.push(...notes.split(''));
                     } else {
                         stopTrack(id);
                     }
@@ -300,5 +298,5 @@ var stopTrack = id => {
 }
 
 var stop = () => {
-    tracks.forEach(track => stopTrack(track.id));
+    tracks.filter(t=>t).forEach((_,id) => stopTrack(id));
 };
